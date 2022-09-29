@@ -98,6 +98,6 @@
     "typescript": "^4.7.4"
   },
   "dependencies": {
-    "ts-partial-type-resolver": "^0.1.4"
+    "ts-partial-type-resolver": "^0.2"
   }
 }

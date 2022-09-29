@@ -1,7 +1,8 @@
 import { existsSync } from "fs"
 import { mkdir, stat, writeFile } from "fs/promises"
 import { join, parse, relative, resolve } from "path"
-import { Parser, rewrite, TypeTransformers } from "ts-partial-type-resolver"
+import { Parser, rewrite, TypeTransformers, getAllEnumsInside } from "ts-partial-type-resolver"
+import { TypeDeclaration } from "ts-partial-type-resolver/types/models/TypeDeclaration"
 import * as vscode from "vscode"
 import { configuration } from "./configuration"
 
@@ -40,10 +41,24 @@ export function activate(context: vscode.ExtensionContext) {
 
           const newFilePath = resolve(fileName, configuration.getMockLocation(), `mock${capitalize(base)}`)
           const importPath = getRelativeImportPath(newFilePath, fileName)
-          const imp = writeImport({ dflt: declaration.default, from: importPath, name: declaration.identifier })
+
+          // TODO actually collect imports into something like Map<filepath, Array<TypeDeclaration>> and write them properly
+          const imports = [writeImport({ declaration, from: importPath })]
+
+          for (const enumType of getAllEnumsInside(declaration.type)) {
+            const enumDeclaration = parser.getDeclaration(enumType.name)
+            if (enumDeclaration) {
+              const enumFile = parser.getSourcePathOf(enumDeclaration)
+              if (enumFile) {
+                imports.push(writeImport({ declaration: enumDeclaration, from: getRelativeImportPath(newFilePath, enumFile) }))
+              }
+            }
+          }
 
           const mockfile = prettify(
-            `${options.header ? `${options.header()}\n` : ""}${imp}\n\nexport const mock${declaration.identifier}: ${declaration.identifier} = ${rewritten}`
+            `${options.header ? `${options.header()}\n` : ""}${imports.join("\n")}\n\nexport const mock${declaration.identifier}: ${
+              declaration.identifier
+            } = ${rewritten}`
           )
 
           await write(newFilePath, mockfile)
@@ -64,13 +79,13 @@ function getRelativeImportPath(importing: string, imported: string) {
   return relative(parse(importing).dir, importedFilepath)
 }
 
-function writeImport({ dflt, name, from }: { dflt: boolean; name: string; from: string }) {
+function writeImport({ declaration, from }: { declaration: TypeDeclaration; from: string }) {
   let result = ""
 
-  if (dflt) {
-    result += `${name}`
+  if (declaration.default) {
+    result += `${declaration.identifier}`
   } else {
-    result += `{ ${name} }`
+    result += `{ ${declaration.identifier} }`
   }
 
   result += `${result !== "" ? " from " : ""}"${from.replace(/\\/g, "/")}"`
