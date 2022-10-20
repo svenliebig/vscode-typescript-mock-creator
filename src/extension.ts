@@ -1,13 +1,13 @@
 import { existsSync } from "fs"
 import { mkdir, stat, writeFile } from "fs/promises"
 import { join, parse, relative, resolve } from "path"
-import { Parser, rewrite, TypeTransformers, getAllEnumsInside } from "ts-partial-type-resolver"
+import { Parser, rewrite, TypeTransformers, getAllEnumsInside, prettify } from "ts-partial-type-resolver"
 import { TypeDeclaration } from "ts-partial-type-resolver/types/models/TypeDeclaration"
 import * as vscode from "vscode"
 import { configuration } from "./configuration"
 
 export function activate(context: vscode.ExtensionContext) {
-  vscode.commands.executeCommand("setContext", "tsmc.supportedLangIds", ["typescript", "typescriptreact", "java"])
+  vscode.commands.executeCommand("setContext", "tsmc.supportedLangIds", ["typescript", "typescriptreact"])
 
   let disposable = vscode.commands.registerCommand("typescript-mock-creator.generateMock", async (...args) => {
     const files = await vscode.workspace.findFiles(".vscode/parser.ts")
@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (fileName) {
         const { base } = parse(fileName)
 
-        const parser = new Parser(fileName, { breakOnUnresolvedImports: true, doNotResolve: options.doNotResolve })
+        const parser = new Parser(fileName, { breakOnUnresolvedImports: false, doNotResolve: options.doNotResolve })
         const declarations = parser.getDeclarations()
 
         if (declarations.length === 0) {
@@ -66,8 +66,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
     }
-
-    vscode.window.showInformationMessage("Hello World from typescript-mock-creator!")
   })
 
   context.subscriptions.push(disposable)
@@ -101,38 +99,6 @@ const capitalize = (str: string) => {
   } else {
     return ""
   }
-}
-
-export type PrettifyOptions = {
-  separator: "  " | "    " | "\t"
-}
-
-const defaultOptions: PrettifyOptions = { separator: "  " }
-
-export function prettify(str: string, { separator = "  " }: PrettifyOptions = defaultOptions) {
-  let deep = 0
-
-  function sep() {
-    return separator.repeat(deep)
-  }
-
-  return str.replace(/(\{\s|\,\s|\s\})/g, (substring: string, ...args: any[]) => {
-    if (substring.includes("{")) {
-      deep++
-      return `{\n${sep()}`
-    }
-
-    if (substring.includes(",")) {
-      return `,\n${sep()}`
-    }
-
-    if (substring.includes("}")) {
-      deep--
-      return `\n${sep()}}`
-    }
-
-    return substring
-  })
 }
 
 export async function assureDir(path: string) {
